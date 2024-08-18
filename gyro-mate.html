@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GyroMate</title>
+    <script src="https://unpkg.com/playroomkit/multiplayer.full.umd.js" crossorigin="anonymous"></script>
+    <style>
+html, body {
+    background-color: black;
+    color: white;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+}
+    </style>
+</head>
+<br><br>
+<center>
+    <h1>Connect Code</h1>
+    <h1 style="font-size: 70px;" id="roomCode">loading...</h1>
+    <p id="statusElem"></p>
+</center>
+<body>
+    <script>
+async function lockScreenOn() {
+    try {
+        wakeLock = await navigator.wakeLock.request("screen");
+        statusElem.innerText = "Wake Lock is active!";
+    } catch (err) {
+        // The Wake Lock request has failed - usually system related, such as battery.
+        statusElem.innerText = `${err.name}, ${err.message}`;
+    }
+}
+async function startHosting() {
+    if (!Playroom.getRoomCode()) {
+        // start multiplayer
+        await Playroom.insertCoin({skipLobby: true}, () => {
+            document.getElementById('roomCode').innerHTML = Playroom.getRoomCode();
+            startReading();
+        });
+    }
+}
+function startReading() {
+    const gyro = new Gyroscope({ frequency: 60 });
+    gyro.addEventListener("reading", (e) => {
+        Playroom.setState('gyro', {x: gyro.x, y: gyro.y, z: gyro.z});
+    });
+    gyro.start();
+
+    const acel = new Accelerometer({ frequency: 60 });
+    acel.addEventListener("reading", () => {
+        Playroom.setState('acel', {x: acel.x, y: acel.y, z: acel.z});
+    });
+    acel.start();
+}
+startHosting();
+lockScreenOn();
+    </script>
+</body>
+</html>
