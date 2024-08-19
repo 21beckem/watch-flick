@@ -6,8 +6,46 @@
     <title>Gyroscope / Accelerometer Test</title>
     <script src="https://unpkg.com/playroomkit/multiplayer.full.umd.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+#playersBox {
+    display: flex;
+    width: 100%;
+}
+.addFlickerWindow {
+    position: relative;
+    overflow-y: hidden;
+    width: 250px;
+    height: 250px;
+    border-radius: 25px;
+    border: 5px solid rgb(160, 160, 160);
+}
+.addFlickerWindow .plus {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 100px;
+    color: rgb(160, 160, 160);
+    user-select: none;
+    cursor: pointer;
+}
+.addFlickerWindow .centerBox {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    text-align: center;
+    transform: translate(-50%, -50%);
+    font-size: 50px;
+    color: white;
+}
+    </style>
 </head>
 <body>
+    <div id="playersBox">
+        <div id="addNewFlickerBtn" class="addFlickerWindow">
+            <div class="plus" onclick="openAddFlickerWindow()">+</div>
+        </div>
+    </div>
     <h1>Gyroscope</h1>
     <canvas id="GyroChart"></canvas>
     <h1>Acelerometer</h1>
@@ -98,27 +136,82 @@ function addData(chart, dataX, dataY, dataZ) {
         chart.data.datasets[2].data.splice(0, 1);
     }
 }
-async function joinHostedData() {
-    const code = prompt('Enter Room Code');
+let currentPlayer = null;
+async function startRoom() {
+    location.hash = ''; // clear the code in the URL
     await Playroom.insertCoin({
-        skipLobby: true,
-        roomCode: code
+        skipLobby: true
     }, () => {
-        startReading();
+        console.log('Room Started', Playroom.getRoomCode());
+        
+        location.hash = ''; // clear the code in the URL
+        Playroom.onPlayerJoin(async (player) => {
+            currentPlayer = player;
+            if (player.id == Playroom.me().id) return;
+            console.log('new player:', player.id);
+            console.log(player);
+            player.onQuit((state) => {
+                console.log(`${state.id} quit!`);
+            });
+            setTimeout(() => {
+                if (!player.getState('oldCode')) return;
+                confirmConnection( player.getState('oldCode') );
+            }, 500);
+        });
+        Playroom.onPlayer
     });
 }
 function startReading() {
     setInterval(() => {
         const gyro = Playroom.getState('gyro');
-        addData(gyroChart, gyro.x, gyro.y, gyro.z);
+        Playroom.setState('gyro', []);
+        gyro.forEach(el => {
+            addData(gyroChart, el.x, el.y, el.z);
+        });
     }, 50);
     
     setInterval(() => {
         const acel = Playroom.getState('acel');
-        addData(acelChart, acel.x, acel.y, acel.z);
+        Playroom.setState('acel', []);
+        acel.forEach(el => {
+            addData(gyroChart, el.x, el.y, el.z);
+        });
     }, 50);
 }
-joinHostedData();
+startRoom();
+
+let playersI = 1;
+let currentNewPlayerWaitingForCode = null;
+function openAddFlickerWindow() {
+    if (!Playroom.getRoomCode()) return;
+    let flickersBox = document.getElementById('playersBox');
+    flickersBox.innerHTML = `<div style="display: none; background-color: black;" playersi="${playersI}" class="addFlickerWindow"></div><iframe id="playersI_${playersI}" class="addFlickerWindow" src="add-flicker.html?mainRoomCode=${Playroom.getRoomCode()}" frameborder="0"></iframe>` + flickersBox.innerHTML;
+    currentNewPlayerWaitingForCode = document.getElementById(`playersI_${playersI}`);
+    document.getElementById('addNewFlickerBtn').style.display = 'none';
+    playersI++;
+}
+window.addEventListener('message', function(event) {
+    document.getElementById('addNewFlickerBtn').style.display = '';
+    currentNewPlayerWaitingForCode.id = 'playersI_' + event.data;
+    currentNewPlayerWaitingForCode = null;
+});
+function confirmConnection(oldCode) {
+    console.log('confirmConnection', oldCode);
+    let thisIframe = document.getElementById('playersI_' + oldCode);
+    let newBox = thisIframe.previousElementSibling;
+    thisIframe.remove();
+    newBox.id = 'playersI_' + oldCode;
+    newBox.style.display = '';
+    newBox.innerHTML = `<div class="status" onclick="openAddFlickerWindow()">
+            <div class="centerBox">
+                Player ${newBox.getAttribute('playersi')}
+                <br>
+                <span style="color: gray; font-size: 40px;">Connected</span>
+            </div>
+        </div>`;
+
+    startReading();
+}
     </script>
 </body>
 </html>
